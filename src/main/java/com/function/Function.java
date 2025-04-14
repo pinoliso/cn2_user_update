@@ -25,26 +25,54 @@ public class Function {
      * 1. curl -d "HTTP Body" {your host}/api/HttpExample
      * 2. curl "{your host}/api/HttpExample?name=HTTP%20Query"
      */
-    @FunctionName("user_update")
-    public HttpResponseMessage run(
-            @HttpTrigger(
-                name = "req",
-                methods = {HttpMethod.POST},
-                authLevel = AuthorizationLevel.ANONYMOUS)
-                HttpRequestMessage<Optional<String>> request,
-            final ExecutionContext context) {
-        context.getLogger().info("Java HTTP trigger processed a request.");
+    @FunctionName("usersInsert")
+    public HttpResponseMessage usersInsert(
+        @HttpTrigger(
+            name = "req",
+            methods = {HttpMethod.POST},
+            route = "usuarios",
+            authLevel = AuthorizationLevel.ANONYMOUS)
+        HttpRequestMessage<Optional<String>> request,
+        final ExecutionContext context) {
 
-        // Parse query parameter
-       try {
-            // Convertir JSON a objeto
+        context.getLogger().info("Java HTTP trigger ejecutado");
+
+        try {
             ObjectMapper mapper = new ObjectMapper();
             String json = request.getBody().orElse("{}");
             User user = mapper.readValue(json, User.class);
 
-            // Insertar en Oracle
-            updateIntoOracle(user, context);
+            crearUsuario(user, context);
+            return request.createResponseBuilder(HttpStatus.CREATED)
+                .body("Usuario creado correctamente.")
+                .build();
 
+        } catch (Exception e) {
+            context.getLogger().severe("Error: " + e.getMessage());
+            return request.createResponseBuilder(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error en la operación: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    @FunctionName("usersUpdate")
+    public HttpResponseMessage usersUpdate(
+        @HttpTrigger(
+            name = "req",
+            methods = {HttpMethod.PUT},
+            route = "usuarios",
+            authLevel = AuthorizationLevel.ANONYMOUS)
+        HttpRequestMessage<Optional<String>> request,
+        final ExecutionContext context) {
+
+        context.getLogger().info("Java HTTP trigger ejecutado");
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            String json = request.getBody().orElse("{}");
+            User user = mapper.readValue(json, User.class);
+
+            actualizarUsuario(user, context);
             return request.createResponseBuilder(HttpStatus.OK)
                 .body("Usuario actualizado correctamente.")
                 .build();
@@ -52,14 +80,70 @@ public class Function {
         } catch (Exception e) {
             context.getLogger().severe("Error: " + e.getMessage());
             return request.createResponseBuilder(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error al actualizar: " + e.getMessage())
-                .build();
+                    .body("Error en la operación: " + e.getMessage())
+                    .build();
         }
     }
 
+    @FunctionName("usersDelete")
+    public HttpResponseMessage usersDelete(
+        @HttpTrigger(
+            name = "req",
+            methods = {HttpMethod.DELETE},
+            route = "usuarios",
+            authLevel = AuthorizationLevel.ANONYMOUS)
+        HttpRequestMessage<Optional<String>> request,
+        final ExecutionContext context) {
 
-    private void updateIntoOracle(User user, ExecutionContext context) throws Exception {
+        context.getLogger().info("Java HTTP trigger ejecutado");
 
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            String json = request.getBody().orElse("{}");
+            User user = mapper.readValue(json, User.class);
+            
+            eliminarUsuario(user.id, context);
+            return request.createResponseBuilder(HttpStatus.OK)
+                .body("Usuario eliminado correctamente.")
+                .build();
+
+        } catch (Exception e) {
+            context.getLogger().severe("Error: " + e.getMessage());
+            return request.createResponseBuilder(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error en la operación: " + e.getMessage())
+                    .build();
+        }
+    }
+
+    private void crearUsuario(User user, ExecutionContext context) throws Exception {
+        Connection conn = conectarOracle(context);
+        PreparedStatement stmt = conn.prepareStatement("INSERT INTO users (username, password, name, rol) VALUES (?, ?, ?, ?)");
+        stmt.setString(1, user.username);
+        stmt.setString(2, user.password);
+        stmt.setString(3, user.name);
+        stmt.setString(4, user.rol);
+        stmt.executeUpdate();
+    }
+
+    private void actualizarUsuario(User user, ExecutionContext context) throws Exception {
+        Connection conn = conectarOracle(context);
+        PreparedStatement stmt = conn.prepareStatement("UPDATE users SET username = ?, password = ?, name = ?, rol = ? WHERE id = ?");
+        stmt.setString(1, user.username);
+        stmt.setString(2, user.password);
+        stmt.setString(3, user.name);
+        stmt.setString(4, user.rol);
+        stmt.setLong(5, user.id);
+        stmt.executeUpdate();
+    }
+
+    private void eliminarUsuario(Long id, ExecutionContext context) throws Exception {
+        Connection conn = conectarOracle(context);
+        PreparedStatement stmt = conn.prepareStatement("DELETE FROM users WHERE id = ?");
+        stmt.setLong(1, id);
+        stmt.executeUpdate();
+    }
+
+    private Connection conectarOracle(ExecutionContext context) throws Exception {
         String dbUser = System.getenv("DB_USER");
         String dbPass = System.getenv("DB_PASSWORD");
         String dbAlias = System.getenv("DB_ALIAS");
@@ -72,25 +156,7 @@ public class Function {
         props.put("password", dbPass);
         props.put("oracle.net.ssl_server_dn_match", "true");
 
-        try {
-            context.getLogger().severe("Connect db: " + jdbcUrl);
-            Connection conn = DriverManager.getConnection(jdbcUrl, props);
-            context.getLogger().severe("Connected db: ");
-            PreparedStatement stmt = conn.prepareStatement(
-                "UPDATE users SET username = ?, password = ?, name = ?, rol = ? WHERE id = ?"
-            );
-            context.getLogger().severe("Prepared: ");
-            stmt.setString(1, user.username);
-            stmt.setString(2, user.password);
-            stmt.setString(3, user.name);
-            stmt.setString(4, user.rol);
-            stmt.setLong(5, user.id);
-            stmt.executeUpdate();
-            
-            context.getLogger().severe("Executed: ");
-        }catch (Exception e) {
-            context.getLogger().severe("Error: " + e.getMessage());
-            throw new Exception("Error al actualizar: " + e.getMessage());
-        }
+        context.getLogger().info("Conectando a DB: " + jdbcUrl);
+        return DriverManager.getConnection(jdbcUrl, props);
     }
 }
