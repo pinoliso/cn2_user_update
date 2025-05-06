@@ -1,7 +1,7 @@
 package com.function;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import com.microsoft.azure.functions.ExecutionContext;
 import com.microsoft.azure.functions.annotation.EventGridTrigger;
 import com.microsoft.azure.functions.annotation.FunctionName;
@@ -14,6 +14,8 @@ import java.util.Properties;
 
 public class Function {
 
+     private static final Gson gson = new Gson();
+
     @FunctionName("usersEventHandler")
     public void usersEventHandler(
         @EventGridTrigger(name = "event", dataType = "String")
@@ -23,10 +25,10 @@ public class Function {
         context.getLogger().info("Event Grid trigger ejecutado: " + eventJson);
 
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode root = mapper.readTree(eventJson);
-            String op = root.get("operation").asText();
-            User user = mapper.treeToValue(root.get("user"), User.class);
+
+            JsonObject json = gson.fromJson(eventJson, JsonObject.class);
+            User user = gson.fromJson(json.get("data").getAsString(), User.class);
+            String op = json.get("subject").getAsString();
 
             switch (op) {
                 case "create":
