@@ -55,7 +55,7 @@ public class Function {
         stmt.setString(1, user.username);
         stmt.setString(2, user.password);
         stmt.setString(3, user.name);
-        stmt.setString(4, user.rol);
+        stmt.setString(4, "GUEST");
         stmt.executeUpdate();
     }
 
